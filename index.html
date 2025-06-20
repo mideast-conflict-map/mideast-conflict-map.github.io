@@ -49,9 +49,11 @@
      *  2.  INIT MAP                                                   *
      *******************************************************************/
     const map = L.map('map', {
-      zoomSnap: 0.25,
-      minZoom: 3
-    }).setView([33.5, 48], 6);
+      zoomSnap: 1,
+      zoomDelta: 1,
+      minZoom: 3,
+      wheelPxPerZoomLevel: 40
+      }).setView([33.5, 48], 6);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
@@ -70,7 +72,7 @@
           const layer = L.geoJSON(data, {
             style: {color: meta.color, weight: 2, fillOpacity: 0.25},
             pointToLayer: (f, latlng) => L.marker(latlng, {
-              icon: L.icon({iconUrl: meta.icon, iconSize: [20,20]})
+              icon: L.icon({iconUrl: meta.icon, iconSize: [18, 18]})
             })
           }).addTo(map);
 
@@ -94,9 +96,15 @@
           <div><img src="${g.icon}" alt="icon">${g.name}</div>`).join('');
         return div;
       };
-      legend.addTo(map);
+      // get the overall extent of everything
       const allLayers = L.featureGroup(Object.values(overlayLayers));
-      map.fitBounds(allLayers.getBounds(), {padding: [20, 20]});  // 20 px pad all around
+      const bounds     = allLayers.getBounds();
+    
+      // fit the map, adding more padding on the RIGHT
+      map.fitBounds(bounds, {
+        paddingTopLeft:     [20, 20],   // normal padding
+        paddingBottomRight: [220, 20]   // ← bigger right-side pad (220 px here)
+      });
     }
   </script>
 </body>
