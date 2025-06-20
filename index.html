@@ -6,130 +6,189 @@
   <title>Interactive Iran Map</title>
 
   <!-- Leaflet -->
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <style>
-    /* ---------- page ---------- */
-    :root{ --bg:#111; --panel:#1b1b1b; --text:#e5e5e5; }
-    html,body{height:100%;margin:0;background:var(--bg);
-              color:var(--text);font-family:system-ui,sans-serif;}
-    #map{height:100%;width:100%;}
+  <!-- Persian UI font -->
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600&display=swap" rel="stylesheet"/>
 
-    /* ---------- custom layer / legend box ---------- */
-    .customLayers{
+  <style>
+  /* ---------- page ---------- */
+  :root{ --bg:#111; --panel:#1b1b1b; --text:#e5e5e5; }
+  html,body{
+      height:100%;margin:0;background:var(--bg);color:var(--text);
+      font-family:"Vazirmatn",system-ui,sans-serif;direction:rtl;
+  }
+  #map{height:100%;width:100%;}
+
+  /* ---------- custom layer / legend box ---------- */
+  .customLayers{
       background:var(--panel)!important;color:var(--text);
       padding:.55rem .8rem .75rem;border-radius:12px;
       box-shadow:0 0 10px #0009;font-size:.86rem;
-      direction:rtl;max-height:88vh;overflow:auto;line-height:1.65;
-    }
-    .updateStamp{font-weight:600;margin-bottom:.45rem;}
+      max-height:88vh;overflow:auto;line-height:1.65;
+      transition:transform .25s ease,opacity .25s ease;
+  }
+  .customLayers.closed{
+      transform:translateX(120%);opacity:0;pointer-events:none;
+  }
+  .updateStamp{
+      font-weight:600;margin-bottom:.45rem;
+      display:flex;justify-content:space-between;align-items:center;
+  }
+  /* ---------- collapse / open buttons ---------- */
+  .collapseBtn, .openLegend{
+      background:var(--panel);color:var(--text);
+      border:none;border-radius:8px;box-shadow:0 0 8px #0008;
+      cursor:pointer;font:700 1rem/1 "Vazirmatn",system-ui;
+      user-select:none;padding:.15rem .55rem;
+  }
+  .collapseBtn{margin-right:.4rem;}
+  .openLegend{display:none;padding:.35rem .7rem;}
 
-    /* one legend row = flex */
-    .legendRow{
+  /* ---------- legend rows ---------- */
+  .legendRow{
       display:flex;align-items:center;gap:.6rem;margin:.15rem 0;
       white-space:nowrap;
-    }
-    .legendRow img{width:20px;height:20px;
-                   filter:drop-shadow(0 0 2px #0008);flex-shrink:0;}
+  }
+  .legendRow img{
+      width:20px;height:20px;filter:drop-shadow(0 0 2px #0008);
+      flex-shrink:0;
+  }
 
-    /* ---------- toggle switch ---------- */
-    .legendRow input[type=checkbox]{
+  /* ---------- toggle switch ---------- */
+  .legendRow input[type=checkbox]{
       appearance:none;width:34px;height:18px;border-radius:9px;
-      background:#555;cursor:pointer;outline:none;position:relative;
-      transition:background .2s;flex-shrink:0;
-    }
-    .legendRow input[type=checkbox]::after{
+      background:#555;cursor:pointer;position:relative;flex-shrink:0;
+      transition:background .2s;
+  }
+  .legendRow input[type=checkbox]::after{
       content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;
       background:#fff;border-radius:50%;transition:left .2s;
-    }
-    .legendRow input[type=checkbox]:checked{background:#2ecc71;}
-    .legendRow input[type=checkbox]:checked::after{left:18px;}
+  }
+  .legendRow input[type=checkbox]:checked{background:#2ecc71;}
+  .legendRow input[type=checkbox]:checked::after{left:18px;}
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <script>
-  /************* 1.  SETTINGS *************/
-  const LAST_UPDATE = '۲۹ خرداد ۱۴۰۴'
+<script>
+/* ============ 1.  SETTINGS ============ */
+const LAST_UPDATE   = '۲۹ خرداد ۱۴۰۴';         // ← type any date you like
+const OPEN_BUTTON_TXT = '☰';                   // icon for re-open button
+const CLOSE_BUTTON_TXT = '✖';                  // icon inside panel header
 
-  const GROUPS = [
-    { label:'حملات هوایی اسرائیل – خرداد ۱۴۰۴', file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',  color:'#e74c3c' },
-    { label:'هشدار تخلیه ارتش اسرائیل',          file:'by_group/IDF_Evacuation_Areas.geojson',    icon:'icons/large/evac.png',          color:'#f13c0f' },
-    { label:'سایت‌های هسته‌ای',                 file:'by_group/Nuclear_Sites.geojson',           icon:'icons/large/nuclear.png', color:'#9b59b6' },
-    { label:'پایگاه‌های موشکی',                  file:'by_group/Missile_Bases.geojson',           icon:'icons/large/missile.png', color:'#d35400' },
-    { label:'پایگاه‌های هوایی',                  file:'by_group/Airfields.geojson',               icon:'icons/large/airfield.png',color:'#2980b9' },
-    { label:'پایگاه‌های دریایی',                 file:'by_group/Naval_Bases.geojson',             icon:'icons/large/naval.png',   color:'#16a085' },
-    { label:'زیرساخت ملی',                       file:'by_group/National_Infrastructure.geojson', icon:'icons/large/power.png',   color:'#2ecc71' },
-    { label:'پایگاه‌های نظامی و سپاه',            file:'by_group/Military_&_IRGC_Bases.geojson',   icon:'icons/large/irgc.png',    color:'#c0392b' },
-    { label:'منطقه برتری هوایی اسرائیل',          file:'by_group/IAF_ASZ.geojson',                 icon:'icons/large/asz.png',           color:'#3498db' },
-    { label:'منطقه برتری هوایی گسترش یافته',      file:'by_group/IAF_ASZ_Expanded.geojson',        icon:'icons/large/asz_ex.png',        color:'#5555ff' },
-    { label:'عملیات زمینی اسرائیل',               file:'by_group/Israeli_Operations_2024.geojson', icon:'icons/large/israeli.png', color:'#27ae60' }
-  ];
+const GROUPS = [
+  { label:'حملات هوایی اسرائیل – خرداد ۱۴۰۴', file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',  color:'#e74c3c' },
+  { label:'هشدار تخلیه ارتش اسرائیل',          file:'by_group/IDF_Evacuation_Areas.geojson',   icon:'icons/large/evac.png',    color:'#f13c0f' },
+  { label:'سایت‌های هسته‌ای',                 file:'by_group/Nuclear_Sites.geojson',          icon:'icons/large/nuclear.png', color:'#9b59b6' },
+  { label:'پایگاه‌های موشکی',                  file:'by_group/Missile_Bases.geojson',          icon:'icons/large/missile.png', color:'#d35400' },
+  { label:'پایگاه‌های هوایی',                  file:'by_group/Airfields.geojson',              icon:'icons/large/airfield.png',color:'#2980b9' },
+  { label:'پایگاه‌های دریایی',                 file:'by_group/Naval_Bases.geojson',            icon:'icons/large/naval.png',   color:'#16a085' },
+  { label:'زیرساخت ملی',                       file:'by_group/National_Infrastructure.geojson',icon:'icons/large/power.png',   color:'#2ecc71' },
+  { label:'پایگاه‌های نظامی و سپاه',            file:'by_group/Military_&_IRGC_Bases.geojson',  icon:'icons/large/irgc.png',    color:'#c0392b' },
+  { label:'منطقه برتری هوایی اسرائیل',          file:'by_group/IAF_ASZ.geojson',                icon:'icons/large/asz.png',     color:'#3498db' },
+  { label:'منطقه برتری هوایی گسترش یافته',      file:'by_group/IAF_ASZ_Expanded.geojson',       icon:'icons/large/asz_ex.png',  color:'#5555ff' },
+  { label:'عملیات زمینی اسرائیل',               file:'by_group/Israeli_Operations_2024.geojson',icon:'icons/large/israeli.png', color:'#27ae60' }
+];
 
-  /************* 2.  MAP INIT *************/
-  const map=L.map('map',{zoomSnap:1,zoomDelta:1,minZoom:3,wheelPxPerZoomLevel:40})
-              .setView([33.5,48],6);
+/* ============ 2.  INIT MAP ============ */
+const map = L.map('map',{
+  zoomSnap:1,zoomDelta:1,minZoom:3,wheelPxPerZoomLevel:40
+}).setView([33.5,48],6);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution:'&copy; OpenStreetMap contributors'
-  }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-  const overlayLayers={}, fetches=[];
+const overlayLayers={}, fetches=[];
 
-  GROUPS.forEach(g=>{
-    fetches.push(
-      fetch(g.file).then(r=>r.json()).then(data=>{
-        const layer=L.geoJSON(data,{
-          style:{color:g.color,weight:2,fillOpacity:0.25},
-          pointToLayer:(_,ll)=>L.marker(ll,{
-            icon:L.icon({iconUrl:g.icon,iconSize:[18,18]})
-          })
-        }).addTo(map);
-        overlayLayers[g.label]=layer;
-      }).catch(e=>console.warn('⚠️',g.file,e))
-    );
-  });
+/* load each GeoJSON file */
+GROUPS.forEach(g=>{
+  fetches.push(
+    fetch(g.file).then(r=>r.json()).then(data=>{
+      const layer = L.geoJSON(data,{
+        style:{color:g.color,weight:2,fillOpacity:0.25},
+        pointToLayer:(_,ll)=>L.marker(ll,{
+          icon:L.icon({iconUrl:g.icon,iconSize:[18,18]})
+        })
+      }).addTo(map);
+      overlayLayers[g.label]=layer;
+    }).catch(e=>console.warn('⚠️',g.file,e))
+  );
+});
 
-  /************* 3.  AFTER LOADS *************/
-  Promise.allSettled(fetches).then(()=>{
-    /* a) create Leaflet layers control */
-    const ctrl=L.control.layers(null,overlayLayers,{collapsed:false}).addTo(map);
-    const box=ctrl.getContainer();
-    box.classList.add('customLayers');
+/* ============ 3.  AFTER ALL LAYERS LOADED… ============ */
+Promise.allSettled(fetches).then(()=>{
 
-    /* b) add manual update stamp */
-    const stamp=document.createElement('div');
-    stamp.className='updateStamp';
-    stamp.textContent='آخرین بروزرسانی: '+LAST_UPDATE;
-    box.prepend(stamp);
+  /* ---- A.  Leaflet layers control ---- */
+  const ctrl = L.control.layers(null,overlayLayers,{collapsed:false}).addTo(map);
+  const box  = ctrl.getContainer();        // the main panel element
+  box.classList.add('customLayers');
 
-    /* c) rebuild each overlay row */
-    [...box.querySelectorAll('.leaflet-control-layers-overlays label')]
-      .forEach(label=>{
-        const key=label.textContent.trim();           // Persian label
-        const meta=GROUPS.find(g=>g.label===key);
-        const check=label.querySelector('input');     // original checkbox
-        label.innerHTML='';                           // clear
-        label.className='legendRow';
+  /* ---- B.  Manual header (stamp + close) ---- */
+  const header=document.createElement('div');
+  header.className='updateStamp';
+  header.innerHTML=`آخرین بروزرسانی: ${LAST_UPDATE}`;
 
-        const img=document.createElement('img'); img.src=meta.icon;
-        const txt=document.createElement('span'); txt.textContent=meta.label;
+  const closeBtn=document.createElement('button');
+  closeBtn.className='collapseBtn';
+  closeBtn.textContent=CLOSE_BUTTON_TXT;
+  header.prepend(closeBtn);           // button on the left side (RTL)
 
-        label.append(check);  // toggle (RTL → leftmost)
-        label.append(img);
-        label.append(txt);
-        check.checked=true;
-      });
+  box.prepend(header);
 
-    /* d) fit map to all layers */
-    const all=L.featureGroup(Object.values(overlayLayers));
-    if(all.getLayers().length && all.getBounds().isValid()){
-      map.fitBounds(all.getBounds(),{padding:[20,20]});
-    }
-  });
-  </script>
+  /* ---- C.  rebuild every row: icon + txt + toggle ---- */
+  [...box.querySelectorAll('.leaflet-control-layers-overlays label')]
+    .forEach(label=>{
+      const key=label.textContent.trim();
+      const meta=GROUPS.find(g=>g.label===key);
+      const check=label.querySelector('input');
+      label.innerHTML='';
+      label.className='legendRow';
+
+      const img=document.createElement('img'); img.src=meta.icon;
+      const txt=document.createElement('span'); txt.textContent=meta.label;
+
+      label.append(check);  // checkbox (toggle) – first (RTL)
+      label.append(img);
+      label.append(txt);
+      check.checked=true;
+    });
+
+  /* ---- D.  collapsible logic ---- */
+  // floating reopen button
+  const openCtrl = L.control({position:'topright'});
+  openCtrl.onAdd = () =>{
+      const div=L.DomUtil.create('button','openLegend');
+      div.textContent=OPEN_BUTTON_TXT;
+      return div;
+  };
+  openCtrl.addTo(map);
+  const openBtn = document.querySelector('.openLegend');
+
+  function hidePanel(){
+      box.classList.add('closed');
+      openBtn.style.display='block';
+  }
+  function showPanel(){
+      box.classList.remove('closed');
+      openBtn.style.display='none';
+  }
+  closeBtn.onclick = hidePanel;
+  openBtn.onclick  = showPanel;
+
+  // prevent map click-through when mouse over panel or buttons
+  L.DomEvent.disableClickPropagation(box);
+  L.DomEvent.disableClickPropagation(openBtn);
+
+  /* ---- E.  fit map to all layers ---- */
+  const all=L.featureGroup(Object.values(overlayLayers));
+  if(all.getLayers().length && all.getBounds().isValid()){
+    map.fitBounds(all.getBounds(),{padding:[20,20]});
+  }
+});
+</script>
 </body>
 </html>
