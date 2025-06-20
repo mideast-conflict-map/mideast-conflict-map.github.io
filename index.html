@@ -7,7 +7,7 @@
 
   <!-- SEO / discovery -->
   <meta name="description"
-      content="Interactive map of Israeli attacks on Iran – showing air‑strikes, IRGC and nuclear sites, evacuation warnings, and air‑superiority zones — نقشه تعاملی حملات اسرائیل به ایران، پایگاه‌های سپاه و هسته‌ای، مناطق تخلیه و برتری هوایی">
+        content="Interactive map of Israeli attacks on Iran – showing air‑strikes, IRGC and nuclear sites, evacuation warnings, and air‑superiority zones — نقشه تعاملی حملات اسرائیل به ایران، پایگاه‌های سپاه و هسته‌ای، مناطق تخلیه و برتری هوایی">
   <meta name="keywords"
         content="Iran Israel war, Israeli airstrikes, IDF strikes, IRGC bases, nuclear sites, missile bases, evacuation areas, Israeli operations 2025,
                  جنگ ایران و اسرائیل, حملات هوایی اسرائیل, موشک‌های اسرائیل, پایگاه‌های سپاه پاسداران, سایت‌های هسته‌ای ایران, تخلیه ارتش اسرائیل, عملیات زمینی اسرائیل">
@@ -26,6 +26,7 @@
   }
 
   /* ---------- page ---------- */
+  html{direction:ltr;}                /* avoid implicit RTL scroll‑shift */
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
             font-family:system-ui,sans-serif;overflow:hidden;}
   /* 100% avoids the browser‑scrollbar offset that 100vw introduces */
@@ -100,8 +101,9 @@
   ];
 
   /************* 2.  MAP INIT *************/
+  /* Central Iran ≈ 32.7 N, 54 E */
   const map=L.map('map',{zoomSnap:1,zoomDelta:1,minZoom:3,wheelPxPerZoomLevel:40})
-              .setView([33.5,48],6);
+              .setView([32.7,54],6);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution:'&copy; OpenStreetMap contributors'
@@ -124,7 +126,10 @@
           })
         });
         geo.addTo(overlayLayers[g.label]);
-      }).catch(e=>console.warn('⚠️',e.message))
+      }).catch(e=>{
+        console.warn('⚠️',e.message);
+        /* user‑visible fallback: leave layer empty but keep legend */
+      })
   );
 
   /************* 3.  AFTER LOADS *************/
@@ -172,6 +177,9 @@
     const all=L.featureGroup(Object.values(overlayLayers));
     if(all.getLayers().length && all.getBounds().isValid()){
       map.fitBounds(all.getBounds(),{padding:[20,20]});
+    }else{
+      /* fallback to a sensible Iran‑wide view */
+      map.setView([32.7,54],6);
     }
   });
   </script>
