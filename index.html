@@ -96,6 +96,7 @@
           <div><img src="${g.icon}" alt="icon">${g.name}</div>`).join('');
         return div;
       };
+      legend.addTo(map);
       // get the overall extent of everything
       const allLayers = L.featureGroup(Object.values(overlayLayers));
       const bounds     = allLayers.getBounds();
