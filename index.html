@@ -84,29 +84,33 @@
         .catch(err => console.error('❌  could not load', meta.file, err));
     });
 
-    function buildUI(){
-      /* layer toggle checkbox panel */
-      L.control.layers(null, overlayLayers, {collapsed:false}).addTo(map);
+    function buildUI() {
+      /* ------- layer toggle check-box panel ------- */
+      L.control.layers(null, overlayLayers, { collapsed: false }).addTo(map);
 
-      /* static legend with the logos */
-      const legend = L.control({position: 'topright'});
+      /* ------- fixed legend ------- */
+      const legend = L.control({ position: 'topright' });
       legend.onAdd = () => {
         const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = GROUPS.map(g => `
-          <div><img src="${g.icon}" alt="icon">${g.name}</div>`).join('');
+        div.innerHTML = GROUPS.map(g =>
+          `<div><img src="${g.icon}" alt="">${g.name}</div>`
+        ).join('');
         return div;
       };
       legend.addTo(map);
-      // get the overall extent of everything
+
+      /* ------- centre the data ------- */
       const allLayers = L.featureGroup(Object.values(overlayLayers));
-      const bounds     = allLayers.getBounds();
-    
-      // fit the map, adding more padding on the RIGHT
-      map.fitBounds(bounds, {
-        paddingTopLeft:     [20, 20],   // normal padding
-        paddingBottomRight: [620, 20]   // ← bigger right-side pad (220 px here)
-      });
+      const bounds    = allLayers.getBounds();
+
+      // fit everything nicely on screen first
+      map.fitBounds(bounds, { padding: [20, 20] });
+
+      // then shove the view 200 px left to give Iran more room
+      // (-200 moves left, + moves right; 2nd value would be up/down)
+      map.panBy([-200, 0], { animate: false });
     }
+
   </script>
 </body>
 </html>
