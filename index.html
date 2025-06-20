@@ -28,7 +28,8 @@
   /* ---------- page ---------- */
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
             font-family:system-ui,sans-serif;overflow:hidden;}
-  #map{position:fixed;inset:0;height:100vh;width:100vw;}
+  /* 100% avoids the browser‑scrollbar offset that 100vw introduces */
+  #map{position:fixed;inset:0;height:100%;width:100%;}
 
   /* ---------- custom layer / legend box ---------- */
   .customLayers{
@@ -73,7 +74,7 @@
     content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;
     background:#fff;border-radius:50%;transition:left .2s;
   }
-  .legendRow input[type=checkbox]:checked{background:var(--brand);}
+  .legendRow input[type=checkbox]:checked{background:var(--brand);} 
   .legendRow input[type=checkbox]:checked::after{left:18px;}
   </style>
 </head>
@@ -112,7 +113,10 @@
 
   /* ---- 2b. fetch & fill them (order now can’t change) ---- */
   const fetches = GROUPS.map(g=>
-      fetch(g.file).then(r=>r.json()).then(data=>{
+      fetch(g.file).then(r=>{
+        if(!r.ok) throw new Error(`${g.file} › ${r.status}`);
+        return r.json();
+      }).then(data=>{
         const geo=L.geoJSON(data,{
           style:{color:g.color,weight:2,fillOpacity:0.25},
           pointToLayer:(_,ll)=>L.marker(ll,{
@@ -120,7 +124,7 @@
           })
         });
         geo.addTo(overlayLayers[g.label]);
-      }).catch(e=>console.warn('⚠️',g.file,e))
+      }).catch(e=>console.warn('⚠️',e.message))
   );
 
   /************* 3.  AFTER LOADS *************/
