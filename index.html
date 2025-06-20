@@ -11,54 +11,49 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    /* ---------- overall look ---------- */
+    /* ---------- page ---------- */
     :root{ --bg:#111; --panel:#1b1b1b; --text:#e5e5e5; }
     html,body{height:100%;margin:0;background:var(--bg);
               color:var(--text);font-family:system-ui,sans-serif;}
     #map{height:100%;width:100%;}
 
-    /* hide only the *default text* span, keep <label> visible */
-    .leaflet-control-layers-overlays label span{display:none;}
-
-    /* ---------- custom layer panel ---------- */
+    /* ---------- custom layer / legend box ---------- */
     .customLayers{
       background:var(--panel)!important;color:var(--text);
-      padding:.5rem .75rem .7rem;border-radius:12px;
+      padding:.55rem .8rem .75rem;border-radius:12px;
       box-shadow:0 0 10px #0009;font-size:.86rem;
-      direction:rtl;line-height:1.6;overflow:auto;max-height:80vh;
+      direction:rtl;max-height:88vh;overflow:auto;line-height:1.65;
     }
-    .customLayers .updateStamp{
-      font-weight:600;margin-bottom:.4rem;white-space:nowrap;
-    }
-    .customLayers .row{
-      display:flex!important;                 /* <-- force visible */
-      align-items:center;gap:.55rem;margin:.15rem 0;
+    .updateStamp{font-weight:600;margin-bottom:.45rem;}
+
+    /* one legend row = flex */
+    .legendRow{
+      display:flex;align-items:center;gap:.6rem;margin:.15rem 0;
       white-space:nowrap;
     }
-    .customLayers img{width:20px;height:20px;filter:drop-shadow(0 0 2px #0007);}
+    .legendRow img{width:20px;height:20px;
+                   filter:drop-shadow(0 0 2px #0008);flex-shrink:0;}
 
     /* ---------- toggle switch ---------- */
-    .customLayers input[type="checkbox"]{
+    .legendRow input[type=checkbox]{
       appearance:none;width:34px;height:18px;border-radius:9px;
       background:#555;cursor:pointer;outline:none;position:relative;
       transition:background .2s;flex-shrink:0;
     }
-    .customLayers input[type="checkbox"]::after{
+    .legendRow input[type=checkbox]::after{
       content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;
       background:#fff;border-radius:50%;transition:left .2s;
     }
-    .customLayers input[type="checkbox"]:checked{
-      background:#2ecc71;
-    }
-    .customLayers input[type="checkbox"]:checked::after{left:18px;}
+    .legendRow input[type=checkbox]:checked{background:#2ecc71;}
+    .legendRow input[type=checkbox]:checked::after{left:18px;}
   </style>
 </head>
 <body>
   <div id="map"></div>
 
   <script>
-  /************ 1.  DATA & SETTINGS ************/
-  const LAST_UPDATE = '۳۰ خرداد ۱۴۰۴';  // ←ـــ Edit this manually
+  /************* 1.  SETTINGS *************/
+  const LAST_UPDATE = '۲۷ خرداد ۱۴۰۴';   // ←ــــ تغییر بده
 
   const GROUPS = [
     { label:'حملات هوایی اسرائیل – خرداد ۱۴۰۴', file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',  color:'#e74c3c' },
@@ -74,9 +69,9 @@
     { label:'عملیات زمینی اسرائیل',               file:'by_group/Israeli_Operations_2024.geojson', icon:'icons/large/israeli.png', color:'#27ae60' }
   ];
 
-  /************ 2.  INIT MAP ************/
-  const map = L.map('map',{zoomSnap:1,zoomDelta:1,minZoom:3,wheelPxPerZoomLevel:40})
-               .setView([33.5,48],6);
+  /************* 2.  MAP INIT *************/
+  const map=L.map('map',{zoomSnap:1,zoomDelta:1,minZoom:3,wheelPxPerZoomLevel:40})
+              .setView([33.5,48],6);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution:'&copy; OpenStreetMap contributors'
@@ -84,53 +79,52 @@
 
   const overlayLayers={}, fetches=[];
 
-  GROUPS.forEach(meta=>{
+  GROUPS.forEach(g=>{
     fetches.push(
-      fetch(meta.file).then(r=>r.json()).then(data=>{
+      fetch(g.file).then(r=>r.json()).then(data=>{
         const layer=L.geoJSON(data,{
-          style:{color:meta.color,weight:2,fillOpacity:0.25},
-          pointToLayer:(_f,ll)=>L.marker(ll,{
-            icon:L.icon({iconUrl:meta.icon,iconSize:[18,18]})
+          style:{color:g.color,weight:2,fillOpacity:0.25},
+          pointToLayer:(_,ll)=>L.marker(ll,{
+            icon:L.icon({iconUrl:g.icon,iconSize:[18,18]})
           })
         }).addTo(map);
-        overlayLayers[meta.label]=layer;
-      }).catch(e=>console.warn('⚠️',meta.file,e))
+        overlayLayers[g.label]=layer;
+      }).catch(e=>console.warn('⚠️',g.file,e))
     );
   });
 
-  /************ 3.  ONCE ALL LAYERS LOADED ************/
+  /************* 3.  AFTER LOADS *************/
   Promise.allSettled(fetches).then(()=>{
-    /* a) build switch panel */
+    /* a) create Leaflet layers control */
     const ctrl=L.control.layers(null,overlayLayers,{collapsed:false}).addTo(map);
     const box=ctrl.getContainer();
     box.classList.add('customLayers');
 
-    /* b) manual last-update stamp */
+    /* b) add manual update stamp */
     const stamp=document.createElement('div');
     stamp.className='updateStamp';
     stamp.textContent='آخرین بروزرسانی: '+LAST_UPDATE;
     box.prepend(stamp);
 
-    /* c) rebuild each label row: icon + persian text + toggle */
-    [...box.querySelectorAll('label')].forEach(label=>{
-      const span=label.querySelector('span');
-      const cb  =label.querySelector('input[type="checkbox"]');
-      if(!span||!cb)return;
-      const meta=GROUPS.find(g=>g.label===span.textContent);
-      if(!meta)return;
+    /* c) rebuild each overlay row */
+    [...box.querySelectorAll('.leaflet-control-layers-overlays label')]
+      .forEach(label=>{
+        const key=label.textContent.trim();           // Persian label
+        const meta=GROUPS.find(g=>g.label===key);
+        const check=label.querySelector('input');     // original checkbox
+        label.innerHTML='';                           // clear
+        label.className='legendRow';
 
-      span.remove();
-      label.className='row';
-      const img=document.createElement('img'); img.src=meta.icon;
-      const txt=document.createElement('span'); txt.textContent=meta.label;
+        const img=document.createElement('img'); img.src=meta.icon;
+        const txt=document.createElement('span'); txt.textContent=meta.label;
 
-      label.prepend(txt);
-      label.prepend(img);
-      label.append(cb);
-      cb.checked=true;
-    });
+        label.append(check);  // toggle (RTL → leftmost)
+        label.append(img);
+        label.append(txt);
+        check.checked=true;
+      });
 
-    /* d) fit to all layers */
+    /* d) fit map to all layers */
     const all=L.featureGroup(Object.values(overlayLayers));
     if(all.getLayers().length && all.getBounds().isValid()){
       map.fitBounds(all.getBounds(),{padding:[20,20]});
