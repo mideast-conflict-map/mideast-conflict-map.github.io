@@ -84,12 +84,12 @@
         .catch(err => console.error('❌  could not load', meta.file, err));
     });
 
-    function buildUI() {
-      /* ------- layer toggle check-box panel ------- */
-      L.control.layers(null, overlayLayers, { collapsed: false }).addTo(map);
+    function buildUI () {
+      /* ------------ layer switcher ------------ */
+      L.control.layers(null, overlayLayers, { collapsed:false }).addTo(map);
 
-      /* ------- fixed legend ------- */
-      const legend = L.control({ position: 'topright' });
+      /* ------------ legend ------------ */
+      const legend = L.control({ position:'topright' });
       legend.onAdd = () => {
         const div = L.DomUtil.create('div', 'legend');
         div.innerHTML = GROUPS.map(g =>
@@ -99,16 +99,17 @@
       };
       legend.addTo(map);
 
-      /* ------- centre the data ------- */
+      /* ------------ fit everything, then shove left ------------ */
       const allLayers = L.featureGroup(Object.values(overlayLayers));
       const bounds    = allLayers.getBounds();
 
-      // fit everything nicely on screen first
-      map.fitBounds(bounds, { padding: [20, 20] });
+      // show the whole dataset (animated = default true)
+      map.fitBounds(bounds, { padding:[20,20] });
 
-      // then shove the view 600 px left to give Iran more room
-      // (-600 moves left, + moves right; 2nd value would be up/down)
-      map.panBy([-600, 0], { animate: false });
+      // when that movement is DONE, push the viewport 600 px left
+      map.once('moveend', () => {
+        map.panBy([-600, 0], { animate:false });
+      });
     }
 
   </script>
