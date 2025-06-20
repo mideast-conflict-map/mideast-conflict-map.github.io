@@ -51,7 +51,7 @@
     const map = L.map('map', {
       zoomSnap: 0.25,
       minZoom: 3
-    }).setView([33.5, 48], 7);
+    }).setView([33.5, 48], 6);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
@@ -70,7 +70,7 @@
           const layer = L.geoJSON(data, {
             style: {color: meta.color, weight: 2, fillOpacity: 0.25},
             pointToLayer: (f, latlng) => L.marker(latlng, {
-              icon: L.icon({iconUrl: meta.icon, iconSize: [26,26]})
+              icon: L.icon({iconUrl: meta.icon, iconSize: [20,20]})
             })
           }).addTo(map);
 
@@ -95,6 +95,8 @@
         return div;
       };
       legend.addTo(map);
+      const allLayers = L.featureGroup(Object.values(overlayLayers));
+      map.fitBounds(allLayers.getBounds(), {padding: [20, 20]});  // 20 px pad all around
     }
   </script>
 </body>
