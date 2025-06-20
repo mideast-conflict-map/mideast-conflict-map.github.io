@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Persian UI font – Vazirmatn (variable, w-100–900) -->
+  <!-- Persian UI font – Vazirmatn (variable, w‑100–900) -->
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;500;700&display=swap" rel="stylesheet">
 
   <style>
@@ -27,8 +27,8 @@
 
   /* ---------- page ---------- */
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
-            font-family:system-ui,sans-serif;}
-  #map{height:100%;width:100%;}
+            font-family:system-ui,sans-serif;overflow:hidden;}
+  #map{position:fixed;inset:0;height:100vh;width:100vw;}
 
   /* ---------- custom layer / legend box ---------- */
   .customLayers{
@@ -85,17 +85,17 @@
   const LAST_UPDATE = '۲۹ خرداد ۱۴۰۴';     // ← edit manually when needed
 
   const GROUPS = [
-    { label:'حملات هوایی اسرائیل',              file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',  color:'#e74c3c' },
-    { label:'هشدار تخلیه ارتش اسرائیل',          file:'by_group/IDF_Evacuation_Areas.geojson',    icon:'icons/large/evac.png',   color:'#f13c0f' },
-    { label:'سایت‌های هسته‌ای',                 file:'by_group/Nuclear_Sites.geojson',           icon:'icons/large/nuclear.png',color:'#9b59b6' },
-    { label:'پایگاه‌های موشکی',                  file:'by_group/Missile_Bases.geojson',           icon:'icons/large/missile.png',color:'#d35400' },
-    { label:'پایگاه‌های هوایی',                  file:'by_group/Airfields.geojson',               icon:'icons/large/airfield.png',color:'#2980b9' },
-    { label:'پایگاه‌های دریایی',                 file:'by_group/Naval_Bases.geojson',             icon:'icons/large/naval.png',  color:'#16a085' },
-    { label:'زیرساخت ملی',                       file:'by_group/National_Infrastructure.geojson', icon:'icons/large/power.png',  color:'#2ecc71' },
-    { label:'پایگاه‌های نظامی و سپاه',            file:'by_group/Military_&_IRGC_Bases.geojson',   icon:'icons/large/irgc.png',   color:'#c0392b' },
-    { label:'منطقه برتری هوایی اسرائیل',          file:'by_group/IAF_ASZ.geojson',                 icon:'icons/large/asz.png',    color:'#3498db' },
-    { label:'منطقه برتری هوایی گسترش‌یافته',      file:'by_group/IAF_ASZ_Expanded.geojson',        icon:'icons/large/asz_ex.png', color:'#5555ff' },
-    { label:'عملیات زمینی اسرائیل',               file:'by_group/Israeli_Operations_2024.geojson', icon:'icons/large/israeli.png',color:'#27ae60' }
+    { label:'حملات هوایی اسرائیل',               file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',   color:'#e74c3c' },
+    { label:'هشدار تخلیه ارتش اسرائیل',           file:'by_group/IDF_Evacuation_Areas.geojson',    icon:'icons/large/evac.png',     color:'#f13c0f' },
+    { label:'سایت‌های هسته‌ای',                  file:'by_group/Nuclear_Sites.geojson',           icon:'icons/large/nuclear.png',  color:'#9b59b6' },
+    { label:'پایگاه‌های موشکی',                   file:'by_group/Missile_Bases.geojson',           icon:'icons/large/missile.png',  color:'#d35400' },
+    { label:'پایگاه‌های هوایی',                   file:'by_group/Airfields.geojson',               icon:'icons/large/airfield.png', color:'#2980b9' },
+    { label:'پایگاه‌های دریایی',                  file:'by_group/Naval_Bases.geojson',             icon:'icons/large/naval.png',    color:'#16a085' },
+    { label:'زیرساخت ملی',                        file:'by_group/National_Infrastructure.geojson', icon:'icons/large/power.png',    color:'#2ecc71' },
+    { label:'پایگاه‌های نظامی و سپاه',             file:'by_group/Military_&_IRGC_Bases.geojson',   icon:'icons/large/irgc.png',     color:'#c0392b' },
+    { label:'منطقه برتری هوایی اسرائیل',           file:'by_group/IAF_ASZ.geojson',                 icon:'icons/large/asz.png',      color:'#3498db' },
+    { label:'منطقه برتری هوایی گسترش‌یافته',       file:'by_group/IAF_ASZ_Expanded.geojson',        icon:'icons/large/asz_ex.png',   color:'#5555ff' },
+    { label:'عملیات زمینی اسرائیل',                file:'by_group/Israeli_Operations_2024.geojson', icon:'icons/large/israeli.png',  color:'#27ae60' }
   ];
 
   /************* 2.  MAP INIT *************/
@@ -106,23 +106,22 @@
     attribution:'&copy; OpenStreetMap contributors'
   }).addTo(map);
 
-  /* ---------- create layer shells first (keeps legend order) ---------- */
-  const overlayLayers={}, fetches=[];
+  /* ---- 2a. create stable empty LayerGroups in overlayLayers first ---- */
+  const overlayLayers={};
+  GROUPS.forEach(g=>{ overlayLayers[g.label]=L.layerGroup().addTo(map); });
 
-  GROUPS.forEach(g=>{
-    const shell=L.layerGroup().addTo(map);   // insert in deterministic order
-    overlayLayers[g.label]=shell;
-
-    // fetch & populate later
-    fetches.push(
+  /* ---- 2b. fetch & fill them (order now can’t change) ---- */
+  const fetches = GROUPS.map(g=>
       fetch(g.file).then(r=>r.json()).then(data=>{
-        L.geoJSON(data,{
+        const geo=L.geoJSON(data,{
           style:{color:g.color,weight:2,fillOpacity:0.25},
-          pointToLayer:(_f,ll)=>L.marker(ll,{icon:L.icon({iconUrl:g.icon,iconSize:[18,18]})})
-        }).addTo(shell);
+          pointToLayer:(_,ll)=>L.marker(ll,{
+            icon:L.icon({iconUrl:g.icon,iconSize:[18,18]})
+          })
+        });
+        geo.addTo(overlayLayers[g.label]);
       }).catch(e=>console.warn('⚠️',g.file,e))
-    );
-  });
+  );
 
   /************* 3.  AFTER LOADS *************/
   Promise.allSettled(fetches).then(()=>{
@@ -134,16 +133,22 @@
     /* b) replace default header with custom header (stamp + toggle) */
     const header=document.createElement('div');
     header.className='headerRow';
-    header.innerHTML=`<span>آخرین بروزرسانی: ${LAST_UPDATE}</span><button class="toggleBtn">✕</button>`;
+
+    const stamp=document.createElement('span');
+    stamp.textContent='آخرین بروزرسانی: '+LAST_UPDATE;
+
+    const toggle=document.createElement('button');
+    toggle.className='toggleBtn'; toggle.textContent='✕';   // open by default
+
+    header.append(stamp,toggle);
     box.prepend(header);
-    const toggle=header.querySelector('.toggleBtn');
 
     /* c) rebuild each overlay row (icon + text + switch) */
     [...box.querySelectorAll('.leaflet-control-layers-overlays label')]
       .forEach(label=>{
-        const key   = label.textContent.trim();
-        const meta  = GROUPS.find(g=>g.label===key);
-        const check = label.querySelector('input');
+        const key = label.textContent.trim();
+        const meta= GROUPS.find(g=>g.label===key);
+        const check= label.querySelector('input');
         label.innerHTML=''; label.className='legendRow';
 
         const img=document.createElement('img'); img.src=meta.icon;
@@ -159,7 +164,7 @@
       toggle.textContent = box.classList.contains('collapsed') ? '☰' : '✕';
     });
 
-    /* e) fit map to all layers */
+    /* e) fit map to all layers once real data are in */
     const all=L.featureGroup(Object.values(overlayLayers));
     if(all.getLayers().length && all.getBounds().isValid()){
       map.fitBounds(all.getBounds(),{padding:[20,20]});
