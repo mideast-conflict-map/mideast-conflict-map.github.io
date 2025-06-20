@@ -17,8 +17,8 @@
               color:var(--text);font-family:system-ui,sans-serif;}
     #map{height:100%;width:100%;}
 
-    /* hide default overlay labels – we rebuild them */
-    .leaflet-control-layers-overlays label{display:none;}
+    /* hide only the *default text* span, keep <label> visible */
+    .leaflet-control-layers-overlays label span{display:none;}
 
     /* ---------- custom layer panel ---------- */
     .customLayers{
@@ -31,7 +31,8 @@
       font-weight:600;margin-bottom:.4rem;white-space:nowrap;
     }
     .customLayers .row{
-      display:flex;align-items:center;gap:.55rem;margin:.15rem 0;
+      display:flex!important;                 /* <-- force visible */
+      align-items:center;gap:.55rem;margin:.15rem 0;
       white-space:nowrap;
     }
     .customLayers img{width:20px;height:20px;filter:drop-shadow(0 0 2px #0007);}
@@ -56,64 +57,61 @@
   <div id="map"></div>
 
   <script>
-  /*******************************************************************
-   * 1.  DEFINE THE LAYERS – Persian labels only in UI                *
-   *******************************************************************/
+  /************ 1.  DATA & SETTINGS ************/
+  const LAST_UPDATE = '۳۰ خرداد ۱۴۰۴';  // ←ـــ Edit this manually
+
   const GROUPS = [
     { label:'حملات هوایی اسرائیل – خرداد ۱۴۰۴', file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',  color:'#e74c3c' },
-    { label:'هشدار تخلیه ارتش اسرائیل',        file:'by_group/IDF_Evacuation_Areas.geojson',    icon:'icons/evac.svg',          color:'#f1c40f' },
-    { label:'سایت‌های هسته‌ای',               file:'by_group/Nuclear_Sites.geojson',           icon:'icons/large/nuclear.png', color:'#9b59b6' },
-    { label:'پایگاه‌های موشکی',                file:'by_group/Missile_Bases.geojson',           icon:'icons/large/missile.png', color:'#d35400' },
-    { label:'پایگاه‌های هوایی',                      file:'by_group/Airfields.geojson',               icon:'icons/large/airfield.png',color:'#2980b9' },
-    { label:'پایگاه‌های دریایی',               file:'by_group/Naval_Bases.geojson',             icon:'icons/large/naval.png',   color:'#16a085' },
-    { label:'زیرساخت ملی',                     file:'by_group/National_Infrastructure.geojson', icon:'icons/large/power.png',   color:'#2ecc71' },
-    { label:'پایگاه‌های نظامی و سپاه',          file:'by_group/Military_&_IRGC_Bases.geojson',   icon:'icons/large/irgc.png',    color:'#c0392b' },
-    { label:'منطقه برتری هوایی اسرائیل',        file:'by_group/IAF_ASZ.geojson',                 icon:'icons/asz.svg',           color:'#3498db' },
-    { label:'منطقه برتری هوایی توسعه‌یافته',    file:'by_group/IAF_ASZ_Expanded.geojson',        icon:'icons/asz_ex.svg',        color:'#5555ff' },
-    { label:'عملیات زمینی اسرائیل',             file:'by_group/Israeli_Operations_2024.geojson', icon:'icons/large/israeli.png', color:'#27ae60' }
+    { label:'هشدار تخلیه ارتش اسرائیل',          file:'by_group/IDF_Evacuation_Areas.geojson',    icon:'icons/evac.svg',          color:'#f1c40f' },
+    { label:'سایت‌های هسته‌ای',                 file:'by_group/Nuclear_Sites.geojson',           icon:'icons/large/nuclear.png', color:'#9b59b6' },
+    { label:'پایگاه‌های موشکی',                  file:'by_group/Missile_Bases.geojson',           icon:'icons/large/missile.png', color:'#d35400' },
+    { label:'پایگاه‌های هوایی',                  file:'by_group/Airfields.geojson',               icon:'icons/large/airfield.png',color:'#2980b9' },
+    { label:'پایگاه‌های دریایی',                 file:'by_group/Naval_Bases.geojson',             icon:'icons/large/naval.png',   color:'#16a085' },
+    { label:'زیرساخت ملی',                       file:'by_group/National_Infrastructure.geojson', icon:'icons/large/power.png',   color:'#2ecc71' },
+    { label:'پایگاه‌های نظامی و سپاه',            file:'by_group/Military_&_IRGC_Bases.geojson',   icon:'icons/large/irgc.png',    color:'#c0392b' },
+    { label:'منطقه برتری هوایی اسرائیل',          file:'by_group/IAF_ASZ.geojson',                 icon:'icons/asz.svg',           color:'#3498db' },
+    { label:'منطقه برتری هوایی توسعه‌یافته',      file:'by_group/IAF_ASZ_Expanded.geojson',        icon:'icons/asz_ex.svg',        color:'#5555ff' },
+    { label:'عملیات زمینی اسرائیل',               file:'by_group/Israeli_Operations_2024.geojson', icon:'icons/large/israeli.png', color:'#27ae60' }
   ];
 
-  /*******************************************************************
-   * 2.  INIT MAP                                                     *
-   *******************************************************************/
-  const map = L.map('map',{
-    zoomSnap:1,zoomDelta:1,minZoom:3,wheelPxPerZoomLevel:40
-  }).setView([33.5,48],6);
+  /************ 2.  INIT MAP ************/
+  const map = L.map('map',{zoomSnap:1,zoomDelta:1,minZoom:3,wheelPxPerZoomLevel:40})
+               .setView([33.5,48],6);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution:'&copy; OpenStreetMap contributors'
   }).addTo(map);
 
-  const overlayLayers = {};
-  const fetches = GROUPS.map(meta =>
-    fetch(meta.file).then(r=>r.json()).then(data=>{
-      const layer=L.geoJSON(data,{
-        style:{color:meta.color,weight:2,fillOpacity:0.25},
-        pointToLayer:(_f,latlng)=>L.marker(latlng,{
-          icon:L.icon({iconUrl:meta.icon,iconSize:[18,18]})
-        })
-      }).addTo(map);
-      overlayLayers[meta.label]=layer;   // Persian key
-    }).catch(e=>console.warn('⚠️',meta.file,e))
-  );
+  const overlayLayers={}, fetches=[];
 
-  /*******************************************************************
-   * 3.  AFTER ALL LAYERS ARE LOADED…                                 *
-   *******************************************************************/
+  GROUPS.forEach(meta=>{
+    fetches.push(
+      fetch(meta.file).then(r=>r.json()).then(data=>{
+        const layer=L.geoJSON(data,{
+          style:{color:meta.color,weight:2,fillOpacity:0.25},
+          pointToLayer:(_f,ll)=>L.marker(ll,{
+            icon:L.icon({iconUrl:meta.icon,iconSize:[18,18]})
+          })
+        }).addTo(map);
+        overlayLayers[meta.label]=layer;
+      }).catch(e=>console.warn('⚠️',meta.file,e))
+    );
+  });
+
+  /************ 3.  ONCE ALL LAYERS LOADED ************/
   Promise.allSettled(fetches).then(()=>{
-    /* a)  build the switch panel */
+    /* a) build switch panel */
     const ctrl=L.control.layers(null,overlayLayers,{collapsed:false}).addTo(map);
     const box=ctrl.getContainer();
     box.classList.add('customLayers');
 
-    /* b)  add “last update” stamp (Persian text) */
+    /* b) manual last-update stamp */
     const stamp=document.createElement('div');
     stamp.className='updateStamp';
-    stamp.textContent='آخرین بروزرسانی: '+
-      new Date().toLocaleDateString('fa-IR',{year:'numeric',month:'short',day:'2-digit'});
+    stamp.textContent='آخرین بروزرسانی: '+LAST_UPDATE;
     box.prepend(stamp);
 
-    /* c)  re-build each label row: icon + Persian label + toggle */
+    /* c) rebuild each label row: icon + persian text + toggle */
     [...box.querySelectorAll('label')].forEach(label=>{
       const span=label.querySelector('span');
       const cb  =label.querySelector('input[type="checkbox"]');
@@ -121,20 +119,18 @@
       const meta=GROUPS.find(g=>g.label===span.textContent);
       if(!meta)return;
 
-      span.remove();                   // remove default text
-      label.className='row';           // flex container
-      const img=document.createElement('img');
-      img.src=meta.icon;
-      const txt=document.createElement('span');
-      txt.textContent=meta.label;
+      span.remove();
+      label.className='row';
+      const img=document.createElement('img'); img.src=meta.icon;
+      const txt=document.createElement('span'); txt.textContent=meta.label;
 
       label.prepend(txt);
       label.prepend(img);
-      label.append(cb);                // toggle on left (RTL)
+      label.append(cb);
       cb.checked=true;
     });
 
-    /* d)  fit the map to all layers */
+    /* d) fit to all layers */
     const all=L.featureGroup(Object.values(overlayLayers));
     if(all.getLayers().length && all.getBounds().isValid()){
       map.fitBounds(all.getBounds(),{padding:[20,20]});
