@@ -7,7 +7,7 @@
 
   <!-- SEO / discovery -->
   <meta name="description"
-      content="Interactive map of Israeli attacks on Iran – showing air-strikes, IRGC and nuclear sites, evacuation warnings, and air-superiority zones — نقشه تعاملی حملات اسرائیل به ایران، پایگاه‌های سپاه و هسته‌ای، مناطق تخلیه و برتری هوایی">
+      content="Interactive map of Israeli attacks on Iran – showing air‑strikes, IRGC and nuclear sites, evacuation warnings, and air‑superiority zones — نقشه تعاملی حملات اسرائیل به ایران، پایگاه‌های سپاه و هسته‌ای، مناطق تخلیه و برتری هوایی">
   <meta name="keywords"
         content="Iran Israel war, Israeli airstrikes, IDF strikes, IRGC bases, nuclear sites, missile bases, evacuation areas, Israeli operations 2025,
                  جنگ ایران و اسرائیل, حملات هوایی اسرائیل, موشک‌های اسرائیل, پایگاه‌های سپاه پاسداران, سایت‌های هسته‌ای ایران, تخلیه ارتش اسرائیل, عملیات زمینی اسرائیل">
@@ -85,7 +85,7 @@
   const LAST_UPDATE = '۲۹ خرداد ۱۴۰۴';     // ← edit manually when needed
 
   const GROUPS = [
-    { label:'حملات هوایی اسرائیل', file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',  color:'#e74c3c' },
+    { label:'حملات هوایی اسرائیل',              file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',  color:'#e74c3c' },
     { label:'هشدار تخلیه ارتش اسرائیل',          file:'by_group/IDF_Evacuation_Areas.geojson',    icon:'icons/large/evac.png',   color:'#f13c0f' },
     { label:'سایت‌های هسته‌ای',                 file:'by_group/Nuclear_Sites.geojson',           icon:'icons/large/nuclear.png',color:'#9b59b6' },
     { label:'پایگاه‌های موشکی',                  file:'by_group/Missile_Bases.geojson',           icon:'icons/large/missile.png',color:'#d35400' },
@@ -106,18 +106,20 @@
     attribution:'&copy; OpenStreetMap contributors'
   }).addTo(map);
 
+  /* ---------- create layer shells first (keeps legend order) ---------- */
   const overlayLayers={}, fetches=[];
 
   GROUPS.forEach(g=>{
+    const shell=L.layerGroup().addTo(map);   // insert in deterministic order
+    overlayLayers[g.label]=shell;
+
+    // fetch & populate later
     fetches.push(
       fetch(g.file).then(r=>r.json()).then(data=>{
-        const layer=L.geoJSON(data,{
+        L.geoJSON(data,{
           style:{color:g.color,weight:2,fillOpacity:0.25},
-          pointToLayer:(_,ll)=>L.marker(ll,{
-            icon:L.icon({iconUrl:g.icon,iconSize:[18,18]})
-          })
-        }).addTo(map);
-        overlayLayers[g.label]=layer;
+          pointToLayer:(_f,ll)=>L.marker(ll,{icon:L.icon({iconUrl:g.icon,iconSize:[18,18]})})
+        }).addTo(shell);
       }).catch(e=>console.warn('⚠️',g.file,e))
     );
   });
@@ -132,22 +134,16 @@
     /* b) replace default header with custom header (stamp + toggle) */
     const header=document.createElement('div');
     header.className='headerRow';
-
-    const stamp=document.createElement('span');
-    stamp.textContent='آخرین بروزرسانی: '+LAST_UPDATE;
-
-    const toggle=document.createElement('button');
-    toggle.className='toggleBtn'; toggle.textContent='✕';   // open by default
-
-    header.append(stamp,toggle);
+    header.innerHTML=`<span>آخرین بروزرسانی: ${LAST_UPDATE}</span><button class="toggleBtn">✕</button>`;
     box.prepend(header);
+    const toggle=header.querySelector('.toggleBtn');
 
     /* c) rebuild each overlay row (icon + text + switch) */
     [...box.querySelectorAll('.leaflet-control-layers-overlays label')]
       .forEach(label=>{
-        const key = label.textContent.trim();
-        const meta= GROUPS.find(g=>g.label===key);
-        const check= label.querySelector('input');
+        const key   = label.textContent.trim();
+        const meta  = GROUPS.find(g=>g.label===key);
+        const check = label.querySelector('input');
         label.innerHTML=''; label.className='legendRow';
 
         const img=document.createElement('img'); img.src=meta.icon;
