@@ -3,115 +3,110 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Iran – Interactive Layer Map</title>
+  <title>Iran – Interactive Layer Map</title>
 
-  <!-- Leaflet CSS & JS (CDN) -->
+  <!-- Leaflet CSS & JS (CDN) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    :root {
-      --bg: #111;
-      --panel: #1b1b1b;
-      --text: #e5e5e5;
+    :root{
+      --bg:#111; --panel:#1b1b1b; --text:#e5e5e5;
+      --legend-h:48px;            /* height of the fixed legend row */
     }
-    html,body {margin:0; height:100%; background:var(--bg); color:var(--text); font-family:system-ui, sans-serif;}
-    #map {height:100%; width:100%;}
-    .legend{
-      background:var(--panel); padding:.75rem 1rem; border-radius:12px; box-shadow:0 0 10px #0006;
-      line-height:1.4; font-size:.9rem;
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;}
+    #map{height:calc(100% - var(--legend-h));width:100%;margin-top:var(--legend-h);} /* map starts below legend */
+
+    /* ---------- legend row ---------- */
+    #legendRow{
+      position:fixed;top:0;left:0;right:0;z-index:1000;
+      display:flex;align-items:center;gap:1.25rem;
+      background:var(--panel);padding:0 .75rem;
+      height:var(--legend-h);box-shadow:0 2px 6px #0009;
+      font-size:.9rem;line-height:1;
+      overflow-x:auto;overscroll-behavior-x:contain; /* scroll on small screens */
     }
-    .legend img{vertical-align:middle; width:22px; height:22px; margin-right:.45rem; filter:drop-shadow(0 0 2px #0008);}
+    #legendRow::-webkit-scrollbar{height:6px;}
+    #legendRow::-webkit-scrollbar-thumb{background:#555;border-radius:3px;}
+
+    #legendRow .stamp{font-weight:600;color:#aaa;margin-right:.75rem;white-space:nowrap;}
+    #legendRow .item{display:flex;align-items:center;white-space:nowrap;}
+    #legendRow img{width:22px;height:22px;margin-right:.4rem;flex:0 0 auto;
+                   filter:drop-shadow(0 0 2px #0006);}
   </style>
 </head>
 <body>
+  <div id="legendRow"></div>
   <div id="map"></div>
 
   <script>
-    /*******************************************************************
-     *  1.  DEFINE YOUR LAYERS                                          *
-     *******************************************************************/
+    /* ---------- 1.  LAYER METADATA ---------- */
     const GROUPS = [
-      { name: 'IDF Strikes June 2025',     file: 'by_group/IDF_Strikes_June_2025.geojson',   icon: 'icons/large/strike.png',   color: '#e74c3c' },
-      { name: 'IDF Evacuation Areas',      file: 'by_group/IDF_Evacuation_Areas.geojson',    icon: 'icons/evac.svg',     color: '#f1c40f' },
-      { name: 'Nuclear Sites',             file: 'by_group/Nuclear_Sites.geojson',           icon: 'icons/large/nuclear.png',  color: '#9b59b6' },
-      { name: 'Missile Bases',             file: 'by_group/Missile_Bases.geojson',           icon: 'icons/large/missile.png',  color: '#d35400' },
-      { name: 'Airfields',                 file: 'by_group/Airfields.geojson',               icon: 'icons/large/airfield.png', color: '#2980b9' },
-      { name: 'Naval Bases',               file: 'by_group/Naval_Bases.geojson',             icon: 'icons/large/naval.png',    color: '#16a085' },
-      { name: 'National Infrastructure',   file: 'by_group/National_Infrastructure.geojson', icon: 'icons/large/power.png',    color: '#2ecc71' },
-      { name: 'Military & IRGC Bases',     file: 'by_group/Military_&_IRGC_Bases.geojson',   icon: 'icons/large/irgc.png',     color: '#c0392b' },
-      { name: 'IAF ASZ',                   file: 'by_group/IAF_ASZ.geojson',                 icon: 'icons/asz.svg',      color: '#3498db' },
-      { name: 'IAF ASZ Expanded',          file: 'by_group/IAF_ASZ_Expanded.geojson',        icon: 'icons/asz_ex.svg',   color: '#5555ff' },
-      { name: 'Israeli Operations 2024',   file: 'by_group/Israeli_Operations_2024.geojson', icon: 'icons/large/israeli.png',  color: '#27ae60' }
+      { name:'IDF Strikes Jun 2025',   file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',  color:'#e74c3c' },
+      { name:'IDF Evacuation Areas',   file:'by_group/IDF_Evacuation_Areas.geojson',    icon:'icons/evac.svg',          color:'#f1c40f' },
+      { name:'Nuclear Sites',          file:'by_group/Nuclear_Sites.geojson',           icon:'icons/large/nuclear.png', color:'#9b59b6' },
+      { name:'Missile Bases',          file:'by_group/Missile_Bases.geojson',           icon:'icons/large/missile.png', color:'#d35400' },
+      { name:'Airfields',              file:'by_group/Airfields.geojson',               icon:'icons/large/airfield.png',color:'#2980b9' },
+      { name:'Naval Bases',            file:'by_group/Naval_Bases.geojson',             icon:'icons/large/naval.png',   color:'#16a085' },
+      { name:'National Infrastructure',file:'by_group/National_Infrastructure.geojson', icon:'icons/large/power.png',   color:'#2ecc71' },
+      { name:'Military & IRGC Bases',  file:'by_group/Military_&_IRGC_Bases.geojson',   icon:'icons/large/irgc.png',    color:'#c0392b' },
+      { name:'IAF ASZ',                file:'by_group/IAF_ASZ.geojson',                 icon:'icons/asz.svg',           color:'#3498db' },
+      { name:'IAF ASZ Expanded',       file:'by_group/IAF_ASZ_Expanded.geojson',        icon:'icons/asz_ex.svg',        color:'#5555ff' },
+      { name:'Israeli Ops 2024',       file:'by_group/Israeli_Operations_2024.geojson', icon:'icons/large/israeli.png', color:'#27ae60' }
     ];
 
-    /*******************************************************************
-     *  2.  INIT MAP                                                   *
-     *******************************************************************/
-    const map = L.map('map', {
-      zoomSnap: 1,
-      zoomDelta: 1,
-      minZoom: 3,
-      wheelPxPerZoomLevel: 40
-      }).setView([33.5, 48], 6);
+    /* ---------- 2.  INIT MAP ---------- */
+    const map = L.map('map',{
+      zoomSnap:1, zoomDelta:1, minZoom:3, wheelPxPerZoomLevel:40
+    }).setView([33.5,48],6);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    const overlayLayers = {};       // will feed L.control.layers
+    const overlayLayers={};
 
-    /*******************************************************************
-     *  3.  LOAD & STYLE EACH GEOJSON LAYER                            *
-     *******************************************************************/
-    GROUPS.forEach(meta => {
-      fetch(meta.file)
-        .then(resp => resp.json())
-        .then(data => {
-          // polygons / lines use style; points swap for icon markers
-          const layer = L.geoJSON(data, {
-            style: {color: meta.color, weight: 2, fillOpacity: 0.25},
-            pointToLayer: (f, latlng) => L.marker(latlng, {
-              icon: L.icon({iconUrl: meta.icon, iconSize: [18, 18]})
-            })
-          }).addTo(map);
+    /* ---------- 3.  LOAD LAYERS ---------- */
+    GROUPS.forEach(meta=>{
+      fetch(meta.file).then(r=>r.json()).then(data=>{
+        const layer=L.geoJSON(data,{
+          style:{color:meta.color,weight:2,fillOpacity:.25},
+          pointToLayer:(_,latlng)=>L.marker(latlng,{
+            icon:L.icon({iconUrl:meta.icon,iconSize:[18,18]})
+          })
+        }).addTo(map);
 
-          overlayLayers[meta.name] = layer;
-
-          // once all layers loaded, rebuild the layer‑switcher & legend
-          if (Object.keys(overlayLayers).length === GROUPS.length) buildUI();
-        })
-        .catch(err => console.error('❌  could not load', meta.file, err));
+        overlayLayers[meta.name]=layer;
+        if(Object.keys(overlayLayers).length===GROUPS.length) buildUI();
+      })
+      .catch(e=>console.error('❌ failed',meta.file,e));
     });
 
-    function buildUI () {
-      /* ------------ layer switcher ------------ */
-      L.control.layers(null, overlayLayers, { collapsed:false }).addTo(map);
+    /* ---------- 4.  BUILD UI ---------- */
+    function buildUI(){
+      /* Layer switcher (still useful) */
+      L.control.layers(null,overlayLayers,{collapsed:false}).addTo(map);
 
-      /* ------------ legend ------------ */
-      const legend = L.control({ position:'topright' });
-      legend.onAdd = () => {
-        const div = L.DomUtil.create('div', 'legend');
-        div.innerHTML = GROUPS.map(g =>
-          `<div><img src="${g.icon}" alt="">${g.name}</div>`
-        ).join('');
-        return div;
-      };
-      legend.addTo(map);
-
-      /* ------------ fit everything, then shove left ------------ */
-      const allLayers = L.featureGroup(Object.values(overlayLayers));
-      const bounds    = allLayers.getBounds();
-
-      // show the whole dataset (animated = default true)
-      map.fitBounds(bounds, { padding:[20,20] });
-
-      // when that movement is DONE, push the viewport 600 px left
-      map.once('moveend', () => {
-        map.panBy([-600, 0], { animate:false });
+      /* ---- Legend Row ---- */
+      const row=document.getElementById('legendRow');
+      // time stamp
+      const stamp=document.createElement('div');
+      stamp.className='stamp';
+      stamp.textContent='Last update: '+new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+      row.appendChild(stamp);
+      // items
+      GROUPS.forEach(g=>{
+        const item=document.createElement('div');
+        item.className='item';
+        item.innerHTML=`<img src="${g.icon}" alt="">${g.name}`;
+        row.appendChild(item);
       });
-    }
 
+      /* ---- Fit + nudge view ---- */
+      const bounds=L.featureGroup(Object.values(overlayLayers)).getBounds();
+      map.fitBounds(bounds,{padding:[20,20]});
+      map.once('moveend',()=>map.panBy([-600,0],{animate:false}));
+    }
   </script>
 </body>
 </html>
