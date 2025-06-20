@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Interactive Iran Map</title>
 
-  <!-- Leaflet -->
+  <!-- Leaflet core -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Persian UI font -->
+  <!-- Persian UI font (Vazirmatn) -->
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600&display=swap" rel="stylesheet"/>
 
   <style>
@@ -21,39 +21,43 @@
   }
   #map{height:100%;width:100%;}
 
-  /* ---------- custom layer / legend box ---------- */
+  /* ---------- legend / layer-switcher ---------- */
   .customLayers{
       background:var(--panel)!important;color:var(--text);
       padding:.55rem .8rem .75rem;border-radius:12px;
       box-shadow:0 0 10px #0009;font-size:.86rem;
       max-height:88vh;overflow:auto;line-height:1.65;
-      transition:transform .25s ease,opacity .25s ease;
-  }
-  .customLayers.closed{
-      transform:translateX(120%);opacity:0;pointer-events:none;
+      transition:opacity .25s ease;
   }
   .updateStamp{
       font-weight:600;margin-bottom:.45rem;
       display:flex;justify-content:space-between;align-items:center;
+      font-family:"Vazirmatn",system-ui,sans-serif;
   }
-  /* ---------- collapse / open buttons ---------- */
+
+  /* ---------- collapse / reopen buttons ---------- */
   .collapseBtn, .openLegend{
       background:var(--panel);color:var(--text);
       border:none;border-radius:8px;box-shadow:0 0 8px #0008;
-      cursor:pointer;font:700 1rem/1 "Vazirmatn",system-ui;
-      user-select:none;padding:.15rem .55rem;
+      cursor:pointer;font:700 1.2rem "Vazirmatn",sans-serif;
+      user-select:none;
   }
-  .collapseBtn{margin-right:.4rem;}
-  .openLegend{display:none;padding:.35rem .7rem;}
+  .collapseBtn{padding:.15rem .55rem;margin-right:.4rem;}
+  .openLegend{
+      display:none;padding:.25rem .55rem;
+      position:relative;z-index:1000;   /* keep above everything */
+  }
 
   /* ---------- legend rows ---------- */
   .legendRow{
       display:flex;align-items:center;gap:.6rem;margin:.15rem 0;
       white-space:nowrap;
+      transition:transform .3s ease, opacity .3s ease;
+      font-family:"Vazirmatn",system-ui,sans-serif;
   }
   .legendRow img{
-      width:20px;height:20px;filter:drop-shadow(0 0 2px #0008);
-      flex-shrink:0;
+      width:20px;height:20px;
+      filter:drop-shadow(0 0 2px #0008);flex-shrink:0;
   }
 
   /* ---------- toggle switch ---------- */
@@ -75,9 +79,10 @@
 
 <script>
 /* ============ 1.  SETTINGS ============ */
-const LAST_UPDATE   = '۲۹ خرداد ۱۴۰۴';         // ← type any date you like
-const OPEN_BUTTON_TXT = '☰';                   // icon for re-open button
-const CLOSE_BUTTON_TXT = '✖';                  // icon inside panel header
+const LAST_UPDATE   = '۲۹ خرداد ۱۴۰۴';      // ← type any date you wish
+const OPEN_ICON     = '☰';                  // icon on the floating button
+const CLOSE_ICON    = '✖';                  // icon in panel header
+const WATERFALL_MS  = 60;                   // delay between row animations
 
 const GROUPS = [
   { label:'حملات هوایی اسرائیل – خرداد ۱۴۰۴', file:'by_group/IDF_Strikes_June_2025.geojson',   icon:'icons/large/strike.png',  color:'#e74c3c' },
@@ -94,9 +99,8 @@ const GROUPS = [
 ];
 
 /* ============ 2.  INIT MAP ============ */
-const map = L.map('map',{
-  zoomSnap:1,zoomDelta:1,minZoom:3,wheelPxPerZoomLevel:40
-}).setView([33.5,48],6);
+const map = L.map('map',{zoomSnap:1,zoomDelta:1,minZoom:3,wheelPxPerZoomLevel:40})
+              .setView([33.5,48],6);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution:'&copy; OpenStreetMap contributors'
@@ -104,11 +108,11 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 
 const overlayLayers={}, fetches=[];
 
-/* load each GeoJSON file */
+/* load every GeoJSON file */
 GROUPS.forEach(g=>{
   fetches.push(
     fetch(g.file).then(r=>r.json()).then(data=>{
-      const layer = L.geoJSON(data,{
+      const layer=L.geoJSON(data,{
         style:{color:g.color,weight:2,fillOpacity:0.25},
         pointToLayer:(_,ll)=>L.marker(ll,{
           icon:L.icon({iconUrl:g.icon,iconSize:[18,18]})
@@ -119,74 +123,82 @@ GROUPS.forEach(g=>{
   );
 });
 
-/* ============ 3.  AFTER ALL LAYERS LOADED… ============ */
+/* ============ 3.  AFTER LOADS ============ */
 Promise.allSettled(fetches).then(()=>{
 
-  /* ---- A.  Leaflet layers control ---- */
-  const ctrl = L.control.layers(null,overlayLayers,{collapsed:false}).addTo(map);
-  const box  = ctrl.getContainer();        // the main panel element
+  /* --- A.  Leaflet layers control --- */
+  const ctrl=L.control.layers(null,overlayLayers,{collapsed:false}).addTo(map);
+  const box = ctrl.getContainer();
   box.classList.add('customLayers');
 
-  /* ---- B.  Manual header (stamp + close) ---- */
+  /* --- B.  header with update stamp & close button --- */
   const header=document.createElement('div');
   header.className='updateStamp';
   header.innerHTML=`آخرین بروزرسانی: ${LAST_UPDATE}`;
 
   const closeBtn=document.createElement('button');
   closeBtn.className='collapseBtn';
-  closeBtn.textContent=CLOSE_BUTTON_TXT;
-  header.prepend(closeBtn);           // button on the left side (RTL)
-
+  closeBtn.textContent=CLOSE_ICON;
+  header.prepend(closeBtn);
   box.prepend(header);
 
-  /* ---- C.  rebuild every row: icon + txt + toggle ---- */
+  /* --- C.  rebuild each row (icon + Persian txt + toggle) --- */
+  const rows = [];
   [...box.querySelectorAll('.leaflet-control-layers-overlays label')]
-    .forEach(label=>{
-      const key=label.textContent.trim();
-      const meta=GROUPS.find(g=>g.label===key);
-      const check=label.querySelector('input');
+    .forEach((label,i)=>{
+      const key  = label.textContent.trim();
+      const meta = GROUPS.find(g=>g.label===key);
+      const chk  = label.querySelector('input');
       label.innerHTML='';
       label.className='legendRow';
-
+      label.style.transitionDelay=`${i*WATERFALL_MS}ms`;   // for waterfall
       const img=document.createElement('img'); img.src=meta.icon;
       const txt=document.createElement('span'); txt.textContent=meta.label;
-
-      label.append(check);  // checkbox (toggle) – first (RTL)
-      label.append(img);
-      label.append(txt);
-      check.checked=true;
+      label.append(chk);   label.append(img);   label.append(txt);
+      chk.checked=true;
+      rows.push(label);
     });
 
-  /* ---- D.  collapsible logic ---- */
-  // floating reopen button
-  const openCtrl = L.control({position:'topright'});
-  openCtrl.onAdd = () =>{
-      const div=L.DomUtil.create('button','openLegend');
-      div.textContent=OPEN_BUTTON_TXT;
-      return div;
+  /* --- D.  collapse / reopen with “waterfall” animation --- */
+  const openCtrl=L.control({position:'topright'});
+  openCtrl.onAdd=()=>{
+     const div=L.DomUtil.create('button','openLegend');
+     div.textContent=OPEN_ICON;
+     return div;
   };
   openCtrl.addTo(map);
-  const openBtn = document.querySelector('.openLegend');
+  const openBtn=document.querySelector('.openLegend');
 
-  function hidePanel(){
-      box.classList.add('closed');
-      openBtn.style.display='block';
+  function waterfallHide(){
+     rows.slice().reverse().forEach((row,idx)=>{
+       setTimeout(()=>{row.style.transform='translateX(120%)';row.style.opacity='0';}, idx*WATERFALL_MS);
+     });
+     setTimeout(()=>{
+       box.style.opacity='0';      // fade container itself
+       openBtn.style.display='block';
+     }, rows.length*WATERFALL_MS+300);
   }
-  function showPanel(){
-      box.classList.remove('closed');
-      openBtn.style.display='none';
-  }
-  closeBtn.onclick = hidePanel;
-  openBtn.onclick  = showPanel;
 
-  // prevent map click-through when mouse over panel or buttons
+  function waterfallShow(){
+     box.style.opacity='1';
+     openBtn.style.display='none';
+     rows.forEach((row)=>{row.style.transform='translateX(120%)';row.style.opacity='0';});
+     rows.forEach((row,idx)=>{
+       setTimeout(()=>{row.style.transform='';row.style.opacity='1';}, idx*WATERFALL_MS);
+     });
+  }
+
+  closeBtn.onclick = waterfallHide;
+  openBtn.onclick  = waterfallShow;
+
+  // prevent map interactions when cursor over panel / buttons
   L.DomEvent.disableClickPropagation(box);
   L.DomEvent.disableClickPropagation(openBtn);
 
-  /* ---- E.  fit map to all layers ---- */
+  /* --- E.  fit map to dataset --- */
   const all=L.featureGroup(Object.values(overlayLayers));
   if(all.getLayers().length && all.getBounds().isValid()){
-    map.fitBounds(all.getBounds(),{padding:[20,20]});
+     map.fitBounds(all.getBounds(),{padding:[20,20]});
   }
 });
 </script>
